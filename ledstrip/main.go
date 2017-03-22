@@ -29,6 +29,8 @@ func main() {
 
 	bounds := c.Bounds()
 
+	//
+
 	for r := 0; r < 256; r++ {
 		for g := 0; g < 128; g += 8 {
 			color := color.RGBA{uint8(r), uint8(g), 0, 255}
