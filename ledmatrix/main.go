@@ -1,8 +1,10 @@
 package main
 
 import (
-	"bitbucket.org/gmcbay/i2c"
 	"log"
+	"time"
+
+	"bitbucket.org/gmcbay/i2c"
 )
 
 func main() {
@@ -14,7 +16,15 @@ func main() {
 	bp.WriteByte(0x70, 0x81, 0x00)
 	bp.WriteByte(0x70, 0xe0, 0x00)
 
-	for ix := 0; ix < 16; ix += 2 {
-		bp.WriteByte(0x70, byte(ix), 0xaa)
+	for t := 0; t < 100; t++ {
+		for ix := 0; ix < 16; ix += 2 {
+			bp.WriteByte(0x70, byte(ix), 0xcc)
+		}
+		time.Sleep(200 * time.Millisecond)
+		for ix := 0; ix < 16; ix += 2 {
+			bp.WriteByte(0x70, byte(ix), 0xff)
+		}
+		time.Sleep(200 * time.Millisecond)
 	}
+
 }
