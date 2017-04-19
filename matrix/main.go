@@ -8,6 +8,8 @@ import (
 )
 
 // ===========================================================
+// Clock
+// ===========================================================
 
 const (
 	nrOfMatrices         = 4
@@ -17,25 +19,25 @@ const (
 )
 
 func main() {
-	device := NewDevice("/dev/spidev0.0", brightness,
+	pixelMatrix := newPixelMatrix("/dev/spidev0.0", brightness,
 		nrOfMatrices, nrOfRowsPerMatrix, nrOfColumnsPerMatrix)
-	defer device.Close()
+	defer pixelMatrix.Close()
 
 	font := sinclairFont()
 	for {
-		device.ClearAll()
-		device.plotStringAt(
+		pixelMatrix.clear()
+		pixelMatrix.plotString(
 			time.Now().Format("15:04"), 1, font)
-		device.Flush()
+		pixelMatrix.flush()
 		time.Sleep(30 * time.Second)
 	}
 }
 
 // ===========================================================
-// Cascaded Max7219 Device
+// Cascaded Max7219 PixelMatrix
 // ===========================================================
 
-type Device struct {
+type PixelMatrix struct {
 	spi                  *spi.Device
 	nrOfMatrices         int
 	nrOfRowsPerMatrix    int
@@ -43,31 +45,34 @@ type Device struct {
 	buffer               []byte
 }
 
-func NewDevice(devstr string, brightness byte, nrOfMatrices,
-	nrOfRowsPerMatrix, nrOfColumnsPerMatrix int) *Device {
+func newPixelMatrix(devstr string,
+	brightness byte, nrOfMatrices,
+	nrOfRowsPerMatrix, nrOfColumnsPerMatrix int) *PixelMatrix {
 	spi, err := spi.Open(
 		&spi.Devfs{devstr, spi.Mode0, 4000000})
 	if err != nil {
 		log.Fatal(err)
 	}
-	this := &Device{}
-	this.spi = spi
-	this.nrOfMatrices = nrOfMatrices
-	this.nrOfRowsPerMatrix = nrOfRowsPerMatrix
-	this.nrOfColumnsPerMatrix = nrOfColumnsPerMatrix
-	this.buffer = make([]byte,
+	buffer := make([]byte,
 		nrOfMatrices*nrOfRowsPerMatrix*nrOfColumnsPerMatrix/8)
-	this.SendCmd(MAX7219_REG_SCANLIMIT, 7)
-	this.SendCmd(MAX7219_REG_DECODEMODE, 0)
-	this.SendCmd(MAX7219_REG_DISPLAYTEST, 0)
-	this.SendCmd(MAX7219_REG_SHUTDOWN, 1)
-	this.SendCmd(MAX7219_REG_INTENSITY, brightness)
-	this.ClearAll()
-	this.Flush()
+	this := &PixelMatrix{
+		spi:                  spi,
+		nrOfMatrices:         nrOfMatrices,
+		nrOfRowsPerMatrix:    nrOfRowsPerMatrix,
+		nrOfColumnsPerMatrix: nrOfColumnsPerMatrix,
+		buffer:               buffer,
+	}
+	this.sendCmd(MAX7219_REG_SCANLIMIT, 7)
+	this.sendCmd(MAX7219_REG_DECODEMODE, 0)
+	this.sendCmd(MAX7219_REG_DISPLAYTEST, 0)
+	this.sendCmd(MAX7219_REG_SHUTDOWN, 1)
+	this.sendCmd(MAX7219_REG_INTENSITY, brightness)
+	this.clear()
+	this.flush()
 	return this
 }
 
-func (this *Device) Close() {
+func (this *PixelMatrix) Close() {
 	this.spi.Close()
 }
 
@@ -90,33 +95,34 @@ const (
 	MAX7219_REG_DISPLAYTEST = 0x0F
 )
 
-func (this *Device) SendCmd(c, b byte) {
-	for matId := 0; matId < this.nrOfMatrices; matId++ {
-		this.spi.Tx([]byte{c, b}, nil)
+func (this *PixelMatrix) sendCmd(register, value byte) {
+	data := []byte{register, value}
+	for matrix := 0; matrix < this.nrOfMatrices; matrix++ {
+		this.spi.Tx(data, nil)
 	}
 }
 
 // ===========================================================
 
-func (this *Device) ClearAll() {
+func (this *PixelMatrix) clear() {
 	for ix := range this.buffer {
 		this.buffer[ix] = 0
 	}
 }
 
-func (this *Device) Flush() {
+func (this *PixelMatrix) flush() {
+	buf := make([]byte, 2*this.nrOfMatrices)
 	for line := 0; line < this.nrOfRowsPerMatrix; line++ {
-		var buf [nrOfMatrices * 2]byte
-		for matId := 0; matId < this.nrOfMatrices; matId++ {
-			buf[matId*2] = byte(MAX7219_REG_DIGIT0 + line)
-			buf[matId*2+1] =
-				this.buffer[matId*this.nrOfRowsPerMatrix+line]
+		for matrix := 0; matrix < this.nrOfMatrices; matrix++ {
+			buf[matrix*2] = byte(MAX7219_REG_DIGIT0 + line)
+			buf[matrix*2+1] =
+				this.buffer[matrix*this.nrOfRowsPerMatrix+line]
 		}
 		this.spi.Tx(buf[:], nil)
 	}
 }
 
-func (this *Device) setPixel(x, y int) {
+func (this *PixelMatrix) setPixel(x, y int) {
 	if x < 0 {
 		return
 	}
@@ -130,29 +136,29 @@ func (this *Device) setPixel(x, y int) {
 		return
 	}
 	line := this.nrOfRowsPerMatrix - 1 - y
-	matId := x / 8
+	matrix := x / 8
 	bit := (byte)(1 << (uint)(7-(x%8)))
-	this.buffer[matId*this.nrOfRowsPerMatrix+line] |= bit
+	this.buffer[matrix*this.nrOfRowsPerMatrix+line] |= bit
 }
 
 // ===========================================================
 
-func (this *Device) plotStringAt(
-	str string, xx int, font [][]byte) int {
-	x := xx
+func (this *PixelMatrix) plotString(str string, xPos int,
+	font [][]byte) int {
+	x := xPos
 	for _, ch := range str {
-		x = this.plotCharAt((byte)(ch), x, font)
+		x = this.plotChar((byte)(ch), x, font)
 		x += 1
 	}
 	return x
 }
 
-func (this *Device) plotCharAt(
-	ch byte, xx int, font [][]byte) int {
+func (this *PixelMatrix) plotChar(ch byte, xPos int,
+	font [][]byte) int {
+	x := xPos
 	bitlines := font[ch-(byte)(' ')]
-	x := xx
 	for _, bitline := range bitlines {
-		bitpos := (byte)(1) << 7
+		bitpos := (byte)(128)
 		for y := 0; y < 8; y++ {
 			bit := bitline & bitpos
 			if bit > 0 {
