@@ -1,35 +1,77 @@
 package main
 
 import (
-	//"fmt"
-	"golang.org/x/exp/io/spi"
 	"log"
 	"time"
+
+	"golang.org/x/exp/io/spi"
+)
+
+// ===========================================================
+
+const (
+	nrOfMatrices         = 4
+	nrOfRowsPerMatrix    = 8
+	nrOfColumnsPerMatrix = 8
+	brightness           = 1
 )
 
 func main() {
-	device := NewDevice("/dev/spidev0.0", 1)
+	device := NewDevice("/dev/spidev0.0", brightness,
+		nrOfMatrices, nrOfRowsPerMatrix, nrOfColumnsPerMatrix)
 	defer device.Close()
-	font := font()
 
+	font := sinclairFont()
 	for {
-		// device.ClearAll()
-		// device.plotStringAt(" Wiffel", 0, font())
-		// device.Flush()
-		// time.Sleep(1 * time.Second)
-
-		// device.ClearAll()
-		// device.plotStringAt(" Linda", 0, font())
-		// device.Flush()
-		// time.Sleep(1 * time.Second)
-
 		device.ClearAll()
 		device.plotStringAt(
-			time.Now().Format(" 15:04"), 0, font)
+			time.Now().Format("15:04"), 1, font)
 		device.Flush()
 		time.Sleep(30 * time.Second)
 	}
 }
+
+// ===========================================================
+// Cascaded Max7219 Device
+// ===========================================================
+
+type Device struct {
+	spi                  *spi.Device
+	nrOfMatrices         int
+	nrOfRowsPerMatrix    int
+	nrOfColumnsPerMatrix int
+	buffer               []byte
+}
+
+func NewDevice(devstr string, brightness byte, nrOfMatrices,
+	nrOfRowsPerMatrix, nrOfColumnsPerMatrix int) *Device {
+	spi, err := spi.Open(
+		&spi.Devfs{devstr, spi.Mode0, 4000000})
+	if err != nil {
+		log.Fatal(err)
+	}
+	this := &Device{}
+	this.spi = spi
+	this.nrOfMatrices = nrOfMatrices
+	this.nrOfRowsPerMatrix = nrOfRowsPerMatrix
+	this.nrOfColumnsPerMatrix = nrOfColumnsPerMatrix
+	this.buffer = make([]byte,
+		nrOfMatrices*nrOfRowsPerMatrix*nrOfColumnsPerMatrix/8)
+	this.SendCmd(MAX7219_REG_SCANLIMIT, 7)
+	this.SendCmd(MAX7219_REG_DECODEMODE, 0)
+	this.SendCmd(MAX7219_REG_DISPLAYTEST, 0)
+	this.SendCmd(MAX7219_REG_SHUTDOWN, 1)
+	this.SendCmd(MAX7219_REG_INTENSITY, brightness)
+	this.ClearAll()
+	this.Flush()
+	return this
+}
+
+func (this *Device) Close() {
+	this.spi.Close()
+}
+
+// ===========================================================
 
 const (
 	MAX7219_REG_NOOP   byte = 0
@@ -48,59 +90,13 @@ const (
 	MAX7219_REG_DISPLAYTEST = 0x0F
 )
 
-const (
-	nrOfLines    = 8
-	nrOfMatrices = 4
-
-	maxX = 8 * 4
-	maxY = 8
-)
-
-type Device struct {
-	buffer [nrOfLines * nrOfMatrices]byte
-	spi    *spi.Device
-}
-
-func NewDevice(devstr string, brightness byte) *Device {
-	spi, err := spi.Open(&spi.Devfs{devstr, spi.Mode0, 4000000})
-	if err != nil {
-		log.Fatal(err)
-	}
-	this := &Device{spi: spi}
-	this.SendCmd(MAX7219_REG_SCANLIMIT, 7)
-	this.SendCmd(MAX7219_REG_DECODEMODE, 0)
-	this.SendCmd(MAX7219_REG_DISPLAYTEST, 0)
-	this.SendCmd(MAX7219_REG_SHUTDOWN, 1)
-	this.SendCmd(MAX7219_REG_INTENSITY, brightness)
-	this.Flush()
-	return this
-}
-
-func (this *Device) Close() {
-	this.spi.Close()
-}
-
 func (this *Device) SendCmd(c, b byte) {
-	for matId := 0; matId < nrOfMatrices; matId++ {
+	for matId := 0; matId < this.nrOfMatrices; matId++ {
 		this.spi.Tx([]byte{c, b}, nil)
 	}
 }
 
-func (this *Device) SetBufferLine(
-	matId int, line int, value byte) {
-	this.buffer[matId*nrOfLines+line] = value
-}
-
-func (this *Device) Flush() {
-	for line := 0; line < nrOfLines; line++ {
-		var buf [nrOfMatrices * 2]byte
-		for matId := 0; matId < nrOfMatrices; matId++ {
-			buf[matId*2] = byte(MAX7219_REG_DIGIT0 + line)
-			buf[matId*2+1] = this.buffer[matId*nrOfLines+line]
-		}
-		this.spi.Tx(buf[:], nil)
-	}
-}
+// ===========================================================
 
 func (this *Device) ClearAll() {
 	for ix := range this.buffer {
@@ -108,18 +104,38 @@ func (this *Device) ClearAll() {
 	}
 }
 
+func (this *Device) Flush() {
+	for line := 0; line < this.nrOfRowsPerMatrix; line++ {
+		var buf [nrOfMatrices * 2]byte
+		for matId := 0; matId < this.nrOfMatrices; matId++ {
+			buf[matId*2] = byte(MAX7219_REG_DIGIT0 + line)
+			buf[matId*2+1] =
+				this.buffer[matId*this.nrOfRowsPerMatrix+line]
+		}
+		this.spi.Tx(buf[:], nil)
+	}
+}
+
 func (this *Device) setPixel(x, y int) {
-	if x >= maxX {
+	if x < 0 {
 		return
 	}
-	if y >= maxY {
+	if y < 0 {
 		return
 	}
-	line := 7 - y
+	if y >= this.nrOfRowsPerMatrix {
+		return
+	}
+	if x >= (this.nrOfMatrices * this.nrOfColumnsPerMatrix) {
+		return
+	}
+	line := this.nrOfRowsPerMatrix - 1 - y
 	matId := x / 8
 	bit := (byte)(1 << (uint)(7-(x%8)))
-	this.buffer[matId*nrOfLines+line] |= bit
+	this.buffer[matId*this.nrOfRowsPerMatrix+line] |= bit
 }
+
+// ===========================================================
 
 func (this *Device) plotStringAt(
 	str string, xx int, font [][]byte) int {
@@ -131,10 +147,11 @@ func (this *Device) plotStringAt(
 	return x
 }
 
-func (this *Device) plotCharAt(ch byte, xx int, font [][]byte) int {
-	bits := font[ch-(byte)(' ')]
+func (this *Device) plotCharAt(
+	ch byte, xx int, font [][]byte) int {
+	bitlines := font[ch-(byte)(' ')]
 	x := xx
-	for _, bitline := range bits {
+	for _, bitline := range bitlines {
 		bitpos := (byte)(1) << 7
 		for y := 0; y < 8; y++ {
 			bit := bitline & bitpos
@@ -148,7 +165,11 @@ func (this *Device) plotCharAt(ch byte, xx int, font [][]byte) int {
 	return x
 }
 
-func font() [][]byte {
+// ===========================================================
+// Pixel Fonts
+// ===========================================================
+
+func sinclairFont() [][]byte {
 	return [][]byte{
 		{},                                   // ' '
 		{0x5F},                               // '!'
@@ -247,3 +268,5 @@ func font() [][]byte {
 		{0x04, 0x02, 0x04, 0x02},       // '~'
 	}
 }
+
+// ===========================================================
