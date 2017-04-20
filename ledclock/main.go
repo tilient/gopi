@@ -12,14 +12,13 @@ import (
 // ===========================================================
 
 func main() {
-	pixelMatrix := newPixelMatrix("/dev/spidev0.0", 1, 4, 8, 8)
+	pixelMatrix := newPixelMatrix(
+		"/dev/spidev0.0", 1, 4, 8, cp437Font())
 	defer pixelMatrix.Close()
 
-	font := cp437Font()
 	for {
 		pixelMatrix.clear()
-		pixelMatrix.plotString(
-			time.Now().Format("15:04"), 1, font)
+		pixelMatrix.plotString(time.Now().Format("15:04"), 1)
 		pixelMatrix.flush()
 		time.Sleep(30 * time.Second)
 	}
@@ -34,10 +33,12 @@ type PixelMatrix struct {
 	nrOfMatrices      int
 	nrOfRowsPerMatrix int
 	buffer            []byte
+	font              [][]byte
 }
 
 func newPixelMatrix(devstr string, brightness byte,
-	nrOfMatrices, nrOfRowsPerMatrix int) *PixelMatrix {
+	nrOfMatrices, nrOfRowsPerMatrix int,
+	font [][]byte) *PixelMatrix {
 	spi, err := spi.Open(
 		&spi.Devfs{devstr, spi.Mode0, 4000000})
 	if err != nil {
@@ -49,6 +50,7 @@ func newPixelMatrix(devstr string, brightness byte,
 		nrOfMatrices:      nrOfMatrices,
 		nrOfRowsPerMatrix: nrOfRowsPerMatrix,
 		buffer:            buffer,
+		font:              font,
 	}
 	this.sendCmd(MAX7219_REG_SCANLIMIT, 7)
 	this.sendCmd(MAX7219_REG_DECODEMODE, 0)
@@ -62,6 +64,20 @@ func newPixelMatrix(devstr string, brightness byte,
 
 func (this *PixelMatrix) Close() {
 	this.spi.Close()
+}
+
+// ===========================================================
+
+func (this *PixelMatrix) flush() {
+	buf := make([]byte, 2*this.nrOfMatrices)
+	for line := 0; line < this.nrOfRowsPerMatrix; line++ {
+		for matrix := 0; matrix < this.nrOfMatrices; matrix++ {
+			buf[matrix*2] = byte(MAX7219_REG_DIGIT0 + line)
+			buf[matrix*2+1] =
+				this.buffer[matrix*this.nrOfRowsPerMatrix+line]
+		}
+		this.spi.Tx(buf[:], nil)
+	}
 }
 
 // ===========================================================
@@ -98,18 +114,6 @@ func (this *PixelMatrix) clear() {
 	}
 }
 
-func (this *PixelMatrix) flush() {
-	buf := make([]byte, 2*this.nrOfMatrices)
-	for line := 0; line < this.nrOfRowsPerMatrix; line++ {
-		for matrix := 0; matrix < this.nrOfMatrices; matrix++ {
-			buf[matrix*2] = byte(MAX7219_REG_DIGIT0 + line)
-			buf[matrix*2+1] =
-				this.buffer[matrix*this.nrOfRowsPerMatrix+line]
-		}
-		this.spi.Tx(buf[:], nil)
-	}
-}
-
 func (this *PixelMatrix) setPixel(x, y int) {
 	if x < 0 {
 		return
@@ -131,20 +135,18 @@ func (this *PixelMatrix) setPixel(x, y int) {
 
 // ===========================================================
 
-func (this *PixelMatrix) plotString(str string, xPos int,
-	font [][]byte) int {
+func (this *PixelMatrix) plotString(str string, xPos int) int {
 	x := xPos
 	for _, ch := range str {
-		x = this.plotChar((byte)(ch), x, font)
+		x = this.plotChar((byte)(ch), x)
 		x += 1
 	}
 	return x
 }
 
-func (this *PixelMatrix) plotChar(ch byte, xPos int,
-	font [][]byte) int {
+func (this *PixelMatrix) plotChar(ch byte, xPos int) int {
 	x := xPos
-	bitlines := font[ch-(byte)(' ')]
+	bitlines := this.font[ch-(byte)(' ')]
 	for _, bitline := range bitlines {
 		bitpos := (byte)(128)
 		for y := 0; y < 8; y++ {
