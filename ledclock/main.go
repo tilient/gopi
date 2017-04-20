@@ -11,20 +11,10 @@ import (
 // Clock
 // ===========================================================
 
-const (
-	nrOfMatrices         = 4
-	nrOfRowsPerMatrix    = 8
-	nrOfColumnsPerMatrix = 8
-	brightness           = 1
-)
-
 func main() {
-	pixelMatrix := newPixelMatrix("/dev/spidev0.0", brightness,
-		nrOfMatrices, nrOfRowsPerMatrix, nrOfColumnsPerMatrix)
+	pixelMatrix := newPixelMatrix("/dev/spidev0.0", 1, 4, 8, 8)
 	defer pixelMatrix.Close()
 
-	//font := sinclairFont()
-	//font := tinyFont()
 	font := cp437Font()
 	for {
 		pixelMatrix.clear()
@@ -40,29 +30,25 @@ func main() {
 // ===========================================================
 
 type PixelMatrix struct {
-	spi                  *spi.Device
-	nrOfMatrices         int
-	nrOfRowsPerMatrix    int
-	nrOfColumnsPerMatrix int
-	buffer               []byte
+	spi               *spi.Device
+	nrOfMatrices      int
+	nrOfRowsPerMatrix int
+	buffer            []byte
 }
 
-func newPixelMatrix(devstr string,
-	brightness byte, nrOfMatrices,
-	nrOfRowsPerMatrix, nrOfColumnsPerMatrix int) *PixelMatrix {
+func newPixelMatrix(devstr string, brightness byte,
+	nrOfMatrices, nrOfRowsPerMatrix int) *PixelMatrix {
 	spi, err := spi.Open(
 		&spi.Devfs{devstr, spi.Mode0, 4000000})
 	if err != nil {
 		log.Fatal(err)
 	}
-	buffer := make([]byte,
-		nrOfMatrices*nrOfRowsPerMatrix*nrOfColumnsPerMatrix/8)
+	buffer := make([]byte, nrOfMatrices*nrOfRowsPerMatrix)
 	this := &PixelMatrix{
-		spi:                  spi,
-		nrOfMatrices:         nrOfMatrices,
-		nrOfRowsPerMatrix:    nrOfRowsPerMatrix,
-		nrOfColumnsPerMatrix: nrOfColumnsPerMatrix,
-		buffer:               buffer,
+		spi:               spi,
+		nrOfMatrices:      nrOfMatrices,
+		nrOfRowsPerMatrix: nrOfRowsPerMatrix,
+		buffer:            buffer,
 	}
 	this.sendCmd(MAX7219_REG_SCANLIMIT, 7)
 	this.sendCmd(MAX7219_REG_DECODEMODE, 0)
@@ -134,7 +120,7 @@ func (this *PixelMatrix) setPixel(x, y int) {
 	if y >= this.nrOfRowsPerMatrix {
 		return
 	}
-	if x >= (this.nrOfMatrices * this.nrOfColumnsPerMatrix) {
+	if x >= (8 * this.nrOfMatrices) {
 		return
 	}
 	line := this.nrOfRowsPerMatrix - 1 - y
