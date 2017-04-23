@@ -21,7 +21,7 @@ func main() {
 		pixelMatrix.clear()
 		format := "15:04"
 		if flip {
-			format = "15 04"
+			format = "15  04"
 		}
 		flip = !flip
 		pixelMatrix.plotString(time.Now().Format(format), 1)
