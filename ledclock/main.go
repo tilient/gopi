@@ -18,15 +18,21 @@ func main() {
 
 	flip := true
 	for {
-		pixelMatrix.clear()
-		format := "15:04"
-		if flip {
-			format = "15  04"
+		t := time.Now()
+		tstr1 := t.Format("3:04")
+		tstr2 := t.Format("3  04")
+		offset := (32 - pixelMatrix.pixelWidthString(tstr1)) / 2
+		for r := 0; r < 30; r++ {
+			pixelMatrix.clear()
+			if flip {
+				pixelMatrix.plotString(tstr1, offset)
+			} else {
+				pixelMatrix.plotString(tstr2, offset)
+			}
+			pixelMatrix.flush()
+			flip = !flip
+			time.Sleep(1 * time.Second)
 		}
-		flip = !flip
-		pixelMatrix.plotString(time.Now().Format(format), 1)
-		pixelMatrix.flush()
-		time.Sleep(1 * time.Second)
 	}
 }
 
@@ -136,8 +142,7 @@ func (pm *PixelMatrix) setPixel(x, y int) {
 func (pm *PixelMatrix) plotString(str string, xPos int) int {
 	x := xPos
 	for _, ch := range str {
-		x = pm.plotChar((byte)(ch), x)
-		x += 1
+		x = 1 + pm.plotChar((byte)(ch), x)
 	}
 	return x
 }
@@ -157,6 +162,18 @@ func (pm *PixelMatrix) plotChar(ch byte, xPos int) int {
 		x += 1
 	}
 	return x
+}
+
+func (pm *PixelMatrix) pixelWidthString(str string) int {
+	width := len(str) - 1
+	for _, ch := range str {
+		width += pm.pixelWidthChar((byte)(ch))
+	}
+	return width
+}
+
+func (pm *PixelMatrix) pixelWidthChar(ch byte) int {
+	return len(pm.font[ch-(byte)(' ')])
 }
 
 // ===========================================================
