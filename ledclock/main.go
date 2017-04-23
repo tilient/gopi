@@ -16,11 +16,17 @@ func main() {
 		"/dev/spidev0.0", 1, 4, 8, cp437Font())
 	defer pixelMatrix.Close()
 
+	flip := true
 	for {
 		pixelMatrix.clear()
-		pixelMatrix.plotString(time.Now().Format("15:04"), 1)
+		format := "15:04"
+		if flip {
+			format = "15 04"
+		}
+		flip = !flip
+		pixelMatrix.plotString(time.Now().Format(format), 1)
 		pixelMatrix.flush()
-		time.Sleep(30 * time.Second)
+		time.Sleep(1 * time.Second)
 	}
 }
 
