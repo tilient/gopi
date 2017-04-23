@@ -18,10 +18,7 @@ func main() {
 
 	flip := true
 	for {
-		t := time.Now()
-		tstr1 := t.Format("3:04")
-		tstr2 := t.Format("3  04")
-		offset := (32 - pixelMatrix.pixelWidthString(tstr1)) / 2
+		tstr1, tstr2, offset := pixelMatrix.timeNowStrings()
 		for r := 0; r < 30; r++ {
 			pixelMatrix.clear()
 			if flip {
@@ -34,6 +31,18 @@ func main() {
 			time.Sleep(1 * time.Second)
 		}
 	}
+}
+
+func (p *PixelMatrix) timeNowStrings() (string, string, int) {
+	t := time.Now()
+	tstr1 := t.Format("15:04")
+	tstr2 := t.Format("15  04")
+	if tstr1[0] == '0' {
+		tstr1 = tstr1[1:]
+		tstr2 = tstr2[1:]
+	}
+	offset := (32 - p.pixelWidthString(tstr1)) / 2
+	return tstr1, tstr2, offset
 }
 
 // ===========================================================
