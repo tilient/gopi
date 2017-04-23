@@ -41,7 +41,8 @@ func (p *PixelMatrix) timeNowStrings() (string, string, int) {
 		tstr1 = tstr1[1:]
 		tstr2 = tstr2[1:]
 	}
-	offset := (32 - p.pixelWidthString(tstr1)) / 2
+	offset :=
+		((p.nrOfMatrices * 8) - p.pixelWidthString(tstr1)) / 2
 	return tstr1, tstr2, offset
 }
 
