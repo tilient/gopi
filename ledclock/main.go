@@ -1,10 +1,9 @@
 package main
 
 import (
+	"golang.org/x/exp/io/spi"
 	"log"
 	"time"
-
-	"golang.org/x/exp/io/spi"
 )
 
 // ===========================================================
@@ -18,13 +17,13 @@ func main() {
 
 	flip := true
 	for {
-		tstr1, tstr2, offset := pixelMatrix.timeNowStrings()
+		str1, str2, offset := pixelMatrix.nowStrings()
 		for r := 0; r < 30; r++ {
 			pixelMatrix.clear()
 			if flip {
-				pixelMatrix.plotString(tstr1, offset)
+				pixelMatrix.plotString(str1, offset)
 			} else {
-				pixelMatrix.plotString(tstr2, offset)
+				pixelMatrix.plotString(str2, offset)
 			}
 			pixelMatrix.flush()
 			flip = !flip
@@ -33,17 +32,17 @@ func main() {
 	}
 }
 
-func (p *PixelMatrix) timeNowStrings() (string, string, int) {
+func (pm *PixelMatrix) nowStrings() (string, string, int) {
 	t := time.Now()
-	tstr1 := t.Format("15:04")
-	tstr2 := t.Format("15  04")
-	if tstr1[0] == '0' {
-		tstr1 = tstr1[1:]
-		tstr2 = tstr2[1:]
+	str1 := t.Format("15:04")
+	str2 := t.Format("15  04")
+	if str1[0] == '0' {
+		str1 = str1[1:]
+		str2 = str2[1:]
 	}
 	offset :=
-		((p.nrOfMatrices * 8) - p.pixelWidthString(tstr1)) / 2
-	return tstr1, tstr2, offset
+		((pm.nrOfMatrices * 8) - pm.pixelWidthString(str1)) / 2
+	return str1, str2, offset
 }
 
 // ===========================================================
