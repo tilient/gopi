@@ -98,7 +98,7 @@ func (pm *PixelMatrix) flush() {
 			buf[matrix*2+1] =
 				pm.buffer[matrix*pm.rowsPerMatrix+line]
 		}
-		pm.bus.Tx(buf[:], nil)
+		pm.bus.Tx(buf, nil)
 	}
 }
 
