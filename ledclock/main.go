@@ -129,16 +129,10 @@ func (pm *PixelMatrix) clear() {
 }
 
 func (pm *PixelMatrix) setPixel(x, y int) {
-	if x < 0 {
+	if (x < 0) || (y < 0) {
 		return
 	}
-	if y < 0 {
-		return
-	}
-	if y >= pm.rowsPerMatrix {
-		return
-	}
-	if x >= (8 * pm.nrOfMatrices) {
+	if (y >= pm.rowsPerMatrix) || (x >= (8 * pm.nrOfMatrices)) {
 		return
 	}
 	line := pm.rowsPerMatrix - 1 - y
