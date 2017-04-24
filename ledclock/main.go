@@ -62,7 +62,8 @@ func newPixelMatrix(devstr string, brightness byte,
 	nrOfMatrices, rowsPerMatrix int,
 	font [][]byte) *PixelMatrix {
 	bus, err := spi.Open(
-		&spi.Devfs{devstr, spi.Mode0, 4000000})
+		&spi.Devfs{
+			Dev: devstr, Mode: spi.Mode0, MaxSpeed: 4000000})
 	if err != nil {
 		log.Fatal(err)
 	}
