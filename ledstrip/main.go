@@ -11,12 +11,13 @@ import (
 
 const numPixels = 15
 
-func color(r, g, b uint32) uint32 {
-	return (g << 16) + (r << 8) + b
+func color(r, g, b int) uint32 {
+	return (uint32(g) << 16) + (uint32(r) << 8) + uint32(b)
 }
 
-func wheel(pos uint32) uint32 {
+func wheel(pos int) uint32 {
 	// Generate rainbow colors across 0-255 positions.
+	pos %= 255
 	if pos < 85 {
 		return color(pos*3, 255-pos*3, 0)
 	}
@@ -32,16 +33,16 @@ func rainbow() {
 	// Draw rainbow that fades across all pixels at once.
 	for j := 0; j < 256; j++ {
 		for i := 0; i < numPixels; i++ {
-			ws2811.SetLed(i, wheel(uint32((i*16+j)%255)))
+			ws2811.SetLed(i, wheel(i*16+j))
 		}
 		ws2811.Render()
 		ws2811.Wait()
-		time.Sleep(10 * time.Millisecond)
+		time.Sleep(20 * time.Millisecond)
 	}
 }
 
 func main() {
-	ws2811.Init(18, numPixels, 55)
+	ws2811.Init(18, numPixels, 25)
 	defer ws2811.Fini()
 
 	ws2811.Clear()
