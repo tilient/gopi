@@ -33,8 +33,8 @@ See https://github.com/jgarff/rpi_ws281x for instructions
 package ws2811
 
 /*
-#cgo CFLAGS: -std=c99
-#cgo LDFLAGS: -lws2811
+#cgo CFLAGS: -std=c99 -static
+#cgo LDFLAGS: -lws2811 -static
 #include "ws2811.go.h"
 */
 import "C"
