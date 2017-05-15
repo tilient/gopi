@@ -1,9 +1,10 @@
 package main
 
 import (
-	"golang.org/x/exp/io/spi"
 	"log"
 	"time"
+
+	"golang.org/x/exp/io/spi"
 )
 
 // ===========================================================
